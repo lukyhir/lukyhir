@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hodnotené udalosti - Geografia</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs (Compat verzie) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>  
+
+    <script>
+        // Konfigurácia Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqkr4J9hz6VnxhFdrZP42H0e0hxgzcpls",
+            authDomain: "geo-hodnotenie.firebaseapp.com",
+            databaseURL: "https://geo-hodnotenie-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "geo-hodnotenie",
+            storageBucket: "geo-hodnotenie.firebasestorage.app",
+            messagingSenderId: "54372337167",
+            appId: "1:54372337167:web:3a9a536c5817e27b43c57a"
+        };
+
+        // Inicializácia databázy
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .print-only {
+            display: none;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .matrix-container {
+                overflow: visible !important;
+            }
+            .cell-card {
+                border: 1px solid #ccc !important;
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-900 text-slate-100 antialiased selection:bg-sky-500 selection:text-white">
+
+    <header class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700/60 sticky top-0 z-30 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-wrap items-center justify-between gap-3 py-3">
+                
+                <!-- Title & App Name -->
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-sky-500/20">
+                        <i class="fa-solid font-bold fa-globe"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                            Geografia - Hodnotené udalosti
+                        </h1>
+                        <p class="text-xs text-slate-400 hidden sm:block">
+                            Plánovanie a evidencia výsledkov žiakov
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Selectors: School Year & Term -->
+                <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-700/80 shadow-inner">
+                    <!-- Year Select -->
+                    <div class="flex items-center gap-1 px-2">
+                        <i class="fa-solid fa-calendar-days text-sky-400 text-xs"></i>
+                        <select id="schoolYearSelect" onchange="changePeriod()" class="bg-transparent text-xs font-bold text-slate-200 border-none focus:outline-none cursor-pointer">
+                            <option value="2025/2026" class="bg-slate-800 text-white">2025/2026</option>
+                            <option value="2026/2027" class="bg-slate-800 text-white">2026/2027</option>
+                            <option value="2027/2028" class="bg-slate-800 text-white">2027/2028</option>
+                            <option value="2028/2029" class="bg-slate-800 text-white">2028/2029</option>
+                        </select>
+                    </div>
+
+                    <div class="h-4 w-px bg-slate-700"></div>
+
+                    <!-- Term Switcher -->
+                    <div class="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700/60">
+                        <button onclick="setTerm('1')" id="term-btn-1" class="px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-sky-500 text-white shadow-sm">
+                            1. polrok
+                        </button>
+                        <button onclick="setTerm('2')" id="term-btn-2" class="px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all">
+                            2. polrok
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="flex items-center gap-2">
+                    <button onclick="openModal('classModal')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-all flex items-center gap-1.5 border border-slate-600/60 shadow-sm">
+                        <i class="fa-solid fa-users text-sky-400"></i>
+                        <span class="hidden sm:inline">Triedy</span>
+                    </button>
+
+                    <button onclick="openModal('categoryModal')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-all flex items-center gap-1.5 border border-slate-600/60 shadow-sm">
+                        <i class="fa-solid fa-list-check text-indigo-400"></i>
+                        <span class="hidden sm:inline">Kategórie</span>
+                    </button>
+
+                    <div class="h-5 w-px bg-slate-700 mx-1"></div>
+
+                    <button onclick="exportData()" title="Exportovať dáta" class="p-2 rounded-lg text-xs font-medium text-slate-400 hover:text-sky-400 hover:bg-slate-800 transition-all">
+                        <i class="fa-solid fa-download text-sm"></i>
+                    </button>
+                    <label title="Importovať dáta" class="p-2 rounded-lg text-xs font-medium text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-all cursor-pointer">
+                        <i class="fa-solid fa-upload text-sm"></i>
+                        <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="importData(event)">
+                    </label>
+
+                    <button onclick="window.print()" title="Vytlačiť / PDF" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white transition-all shadow-md shadow-sky-600/20 flex items-center gap-1.5">
+                        <i class="fa-solid fa-print"></i>
+                        <span class="hidden md:inline">Tlačiť</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="bg-slate-800/40 border-b border-slate-800 py-3 px-4 sm:px-8 no-print">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <!-- Filter Status -->
+            <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-400 font-medium mr-1 flex items-center gap-1">
+                    <i class="fa-solid fa-filter text-slate-500"></i> Zobraziť:
+                </span>
+                <button onclick="setFilter('all')" id="filter-all" class="px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 font-medium border border-sky-500/30 transition-all">
+                    Všetky
+                </button>
+                <button onclick="setFilter('completed')" id="filter-completed" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all">
+                    Realizované
+                </button>
+                <button onclick="setFilter('planned')" id="filter-planned" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all">
+                    Plánované
+                </button>
+                <button onclick="setFilter('postponed')" id="filter-postponed" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all">
+                    Preložené
+                </button>
+                <button onclick="setFilter('cancelled')" id="filter-cancelled" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all">
+                    Zrušené
+                </button>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex items-center gap-4 text-xs font-medium text-slate-300 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800 flex-wrap">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded bg-slate-100 border border-slate-300 shadow-sm inline-block"></span>
+                    <span>Plánované</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded bg-gradient-to-r from-red-600 via-emerald-600 to-purple-600 shadow-sm inline-block"></span>
+                    <span>Realizované</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded bg-slate-800 border border-slate-600 shadow-sm inline-block"></span>
+                    <span>Preložené</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded bg-slate-950 border border-slate-700 shadow-sm inline-block"></span>
+                    <span>Zrušené</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+        <!-- Interactive Matrix -->
+        <div class="bg-slate-800/50 rounded-2xl border border-slate-700/60 shadow-xl overflow-hidden backdrop-blur-xl">
+            <div class="overflow-x-auto matrix-container">
+                <table class="w-full text-left border-collapse table-fixed min-w-[1000px]">
+                    <thead>
+                        <tr id="matrixHeader" class="bg-slate-900/80 border-b border-slate-700/80">
+                            <!-- Dynamic Categories -->
+                        </tr>
+                    </thead>
+                    <tbody id="matrixBody" class="divide-y divide-slate-700/50">
+                        <!-- Dynamic Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="mt-4 flex flex-wrap justify-between items-center text-xs text-slate-400 gap-2 no-print">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-sky-400"></i>
+                <span id="activePeriodLabel" class="font-semibold text-slate-300"></span>
+            </div>
+            <div id="statsSummary" class="font-medium text-slate-300">
+                <!-- Calculated stats -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Task -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden transition-opacity">
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg p-6 shadow-2xl relative">
+            <button onclick="closeModal('taskModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-700">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 id="taskModalTitle" class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-sky-400"></i> Úprava udalosti
+            </h3>
+            
+            <form id="taskForm" onsubmit="handleTaskSubmit(event)" class="space-y-4">
+                <input type="hidden" id="taskId">
+                <input type="hidden" id="taskClassId">
+                <input type="hidden" id="taskCategoryId">
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Tematický celok / Udalosť</label>
+                    <input type="text" id="taskTitle" required placeholder="napr. Litosféra, Severná Afrika..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Stav</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <label class="relative flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 has-[:checked]:border-slate-200 has-[:checked]:bg-slate-100 has-[:checked]:text-slate-900 transition-all">
+                            <input type="radio" name="taskStatus" value="planned" class="sr-only" required>
+                            <span class="w-3.5 h-3.5 rounded-full bg-slate-100 border border-slate-400 mb-1"></span>
+                            <span class="text-xs font-bold">Plánované</span>
+                        </label>
+                        <label class="relative flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer hover:border-sky-500 has-[:checked]:border-sky-500 has-[:checked]:bg-sky-500/20 has-[:checked]:text-sky-300 transition-all">
+                            <input type="radio" name="taskStatus" value="completed" class="sr-only">
+                            <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 mb-1"></span>
+                            <span class="text-xs font-bold">Realizované</span>
+                        </label>
+                        <label class="relative flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 has-[:checked]:border-slate-500 has-[:checked]:bg-slate-800 has-[:checked]:text-slate-300 transition-all">
+                            <input type="radio" name="taskStatus" value="postponed" class="sr-only">
+                            <span class="w-3.5 h-3.5 rounded-full bg-slate-600 border border-slate-500 mb-1"></span>
+                            <span class="text-xs font-bold">Preložené</span>
+                        </label>
+                        <label class="relative flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-600 has-[:checked]:border-slate-600 has-[:checked]:bg-slate-950 has-[:checked]:text-slate-400 transition-all">
+                            <input type="radio" name="taskStatus" value="cancelled" class="sr-only">
+                            <span class="w-3.5 h-3.5 rounded-full bg-black border border-slate-700 mb-1"></span>
+                            <span class="text-xs font-bold">Zrušené</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Poznámka (Voliteľné)</label>
+                    <textarea id="taskNote" rows="2" placeholder="Dodatočné informácie..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 text-sm"></textarea>
+                </div>
+
+                <div class="flex items-center justify-between pt-3 border-t border-slate-700">
+                    <button type="button" id="btnDeleteTask" onclick="deleteCurrentTask()" class="px-3 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all">
+                        <i class="fa-solid fa-trash mr-1"></i> Vymazať
+                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeModal('taskModal')" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl transition-all">
+                            Zrušiť
+                        </button>
+                        <button type="submit" class="px-4 py-2 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-lg shadow-sky-600/30 transition-all">
+                            Uložiť zmeny
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Classes -->
+    <div id="classModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6 shadow-2xl relative">
+            <button onclick="closeModal('classModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-users text-sky-400"></i> Správa tried
+            </h3>
+
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="newClassName" placeholder="Názov triedy (napr. 7 AB)" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-sky-500">
+                <button onclick="addNewClass()" class="px-4 py-2 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-xl transition-all">
+                    Pridať
+                </button>
+            </div>
+
+            <div id="classListContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Modal Categories -->
+    <div id="categoryModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg p-6 shadow-2xl relative">
+            <button onclick="closeModal('categoryModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-indigo-400"></i> Správa udalostí
+            </h3>
+
+            <div class="flex flex-col sm:flex-row gap-2 mb-4">
+                <input type="text" id="newCategoryName" placeholder="Názov kategórie" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500">
+                <div class="flex items-center gap-2">
+                    <input type="color" id="newCategoryHex" value="#3b82f6" class="w-10 h-9 bg-slate-900 border border-slate-700 rounded-lg p-0.5 cursor-pointer">
+                    <button onclick="addNewCategory()" class="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all whitespace-nowrap">
+                        Pridať kategóriu
+                    </button>
+                </div>
+            </div>
+
+            <div id="categoryListContainer" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-800 text-white border border-slate-700 px-4 py-3 rounded-xl shadow-2xl z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-2 pointer-events-none">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMsg" class="text-sm">Správa bola uložená</span>
+    </div>
+
+    <script>
+        const DEFAULT_CATEGORIES = [
+            { id: 'cat-1', name: 'KLASICKÉ TESTY', color: 'red-classic' },
+            { id: 'cat-2', name: 'OPENBOOK TESTY', color: 'red-openbook' },
+            { id: 'cat-3', name: 'KLASICKÉ MAPY', color: 'green-classic' },
+            { id: 'cat-4', name: 'OPENBOOK MAPY', color: 'green-openbook' },
+            { id: 'cat-5', name: 'PRACOVNÝ LIST', color: 'orange' },
+            { id: 'cat-6', name: 'ONLINE ZADANIE', color: 'purple' },
+            { id: 'cat-7', name: 'GEOPROJEKT', color: 'blue' }
+        ];
+
+        const DEFAULT_CLASSES = [
+            { id: 'cls-5', grade: '5', section: 'ABC' },
+            { id: 'cls-6', grade: '6', section: 'AB' },
+            { id: 'cls-7', grade: '7', section: 'AB' },
+            { id: 'cls-8', grade: '8', section: 'AB' },
+            { id: 'cls-9', grade: '9', section: 'A' }
+        ];
+
+        const DEFAULT_TASKS = [
+            { id: 't-101', classId: 'cls-5', categoryId: 'cat-1', title: 'Zem, Mesiac', status: 'completed' },
+            { id: 't-102', classId: 'cls-5', categoryId: 'cat-1', title: 'Pevnina a oceán\nCesty objaviteľov', status: 'planned' },
+            { id: 't-103', classId: 'cls-5', categoryId: 'cat-1', title: 'Litosféra', status: 'completed' },
+            { id: 't-104', classId: 'cls-5', categoryId: 'cat-2', title: 'Pohyby Zeme\nČasové pásma', status: 'completed' },
+            { id: 't-105', classId: 'cls-5', categoryId: 'cat-3', title: 'Pevnina a oceán\nCesty objaviteľov', status: 'planned' },
+            { id: 't-106', classId: 'cls-5', categoryId: 'cat-4', title: 'Poludníky\nRovnobežky\nGeografická sieť', status: 'cancelled' },
+            { id: 't-107', classId: 'cls-5', categoryId: 'cat-5', title: 'Svetové strany', status: 'completed' },
+            { id: 't-201', classId: 'cls-6', categoryId: 'cat-1', title: 'Severná Afrika', status: 'planned' },
+            { id: 't-202', classId: 'cls-6', categoryId: 'cat-1', title: 'Západná Afrika', status: 'completed' },
+            { id: 't-203', classId: 'cls-6', categoryId: 'cat-2', title: 'Stredná a východná Afrika', status: 'cancelled' },
+            { id: 't-204', classId: 'cls-6', categoryId: 'cat-3', title: 'Členitosť Afriky', status: 'planned' },
+            { id: 't-205', classId: 'cls-6', categoryId: 'cat-3', title: 'Severná Afrika', status: 'planned' },
+            { id: 't-206', classId: 'cls-6', categoryId: 'cat-3', title: 'Západná Afrika', status: 'planned' },
+            { id: 't-207', classId: 'cls-6', categoryId: 'cat-4', title: 'Stredná a východná Afrika', status: 'cancelled' },
+            { id: 't-208', classId: 'cls-6', categoryId: 'cat-5', title: 'Vitajte v Afrike', status: 'completed' },
+            { id: 't-209', classId: 'cls-6', categoryId: 'cat-6', title: 'Kartogramy: Obyvateľstvo Afriky', status: 'completed' },
+            { id: 't-210', classId: 'cls-6', categoryId: 'cat-7', title: 'AfroKvíz', status: 'postponed' },
+            { id: 't-301', classId: 'cls-7', categoryId: 'cat-1', title: 'Poloha, povrch, podnebie, vodstvo', status: 'planned' },
+            { id: 't-302', classId: 'cls-7', categoryId: 'cat-1', title: 'Obyvateľstvo\nHospodárstvo\nDoprava a CR', status: 'completed' },
+            { id: 't-303', classId: 'cls-7', categoryId: 'cat-2', title: 'Európska únia\nProblémy Európy', status: 'completed' },
+            { id: 't-304', classId: 'cls-7', categoryId: 'cat-3', title: 'Členitosť pobrežia', status: 'planned' },
+            { id: 't-305', classId: 'cls-7', categoryId: 'cat-3', title: 'Poloha, povrch, podnebie, vodstvo', status: 'planned' },
+            { id: 't-306', classId: 'cls-7', categoryId: 'cat-5', title: 'Vodstvo Európy', status: 'completed' },
+            { id: 't-307', classId: 'cls-7', categoryId: 'cat-6', title: 'Problémy Európy', status: 'completed' },
+            { id: 't-401', classId: 'cls-8', categoryId: 'cat-1', title: 'Južná Európa', status: 'completed' },
+            { id: 't-402', classId: 'cls-8', categoryId: 'cat-2', title: 'Severná Európa', status: 'cancelled' },
+            { id: 't-403', classId: 'cls-8', categoryId: 'cat-3', title: 'Južná Európa', status: 'planned' },
+            { id: 't-404', classId: 'cls-8', categoryId: 'cat-4', title: 'Severná Európa', status: 'postponed' },
+            { id: 't-405', classId: 'cls-8', categoryId: 'cat-5', title: 'Dánsko a Nórsko', status: 'completed' },
+            { id: 't-406', classId: 'cls-8', categoryId: 'cat-6', title: 'Severná Európa', status: 'completed' },
+            { id: 't-407', classId: 'cls-8', categoryId: 'cat-7', title: 'Talianska kuchyňa', status: 'completed' },
+            { id: 't-501', classId: 'cls-9', categoryId: 'cat-1', title: 'Austrália', status: 'completed' },
+            { id: 't-502', classId: 'cls-9', categoryId: 'cat-1', title: 'Oceánia', status: 'completed' },
+            { id: 't-503', classId: 'cls-9', categoryId: 'cat-2', title: 'Príroda Ameriky', status: 'cancelled' },
+            { id: 't-504', classId: 'cls-9', categoryId: 'cat-3', title: 'Pobrežie Austrálie', status: 'planned' },
+            { id: 't-505', classId: 'cls-9', categoryId: 'cat-3', title: 'Austrália', status: 'planned' },
+            { id: 't-506', classId: 'cls-9', categoryId: 'cat-3', title: 'Pobrežie Ameriky', status: 'planned' },
+            { id: 't-507', classId: 'cls-9', categoryId: 'cat-4', title: 'Príroda Ameriky', status: 'postponed' },
+            { id: 't-508', classId: 'cls-9', categoryId: 'cat-5', title: 'Poloha Ameriky', status: 'completed' },
+            { id: 't-509', classId: 'cls-9', categoryId: 'cat-6', title: 'Štáty Oceánie', status: 'completed' },
+            { id: 't-510', classId: 'cls-9', categoryId: 'cat-7', title: 'Spoločenská hra: Austrália', status: 'cancelled' }
+        ];
+
+        const PREDEFINED_COLOR_MAP = {
+            'red-classic': { bgClass: 'bg-red-600', textClass: 'text-red-600', borderClass: 'border-red-500', shadowClass: 'shadow-red-900/30', hex: '#dc2626' },
+            'red-openbook': { bgClass: 'bg-rose-500', textClass: 'text-rose-500', borderClass: 'border-rose-400', shadowClass: 'shadow-rose-900/30', hex: '#f43f5e' },
+            'green-classic': { bgClass: 'bg-emerald-700', textClass: 'text-emerald-700', borderClass: 'border-emerald-600', shadowClass: 'shadow-emerald-900/30', hex: '#047857' },
+            'green-openbook': { bgClass: 'bg-green-600', textClass: 'text-green-600', borderClass: 'border-green-500', shadowClass: 'shadow-green-900/30', hex: '#16a34a' },
+            'orange': { bgClass: 'bg-amber-500', textClass: 'text-amber-500', borderClass: 'border-amber-400', shadowClass: 'shadow-amber-900/30', hex: '#f59e0b' },
+            'purple': { bgClass: 'bg-purple-600', textClass: 'text-purple-600', borderClass: 'border-purple-500', shadowClass: 'shadow-purple-900/30', hex: '#9333ea' },
+            'blue': { bgClass: 'bg-blue-600', textClass: 'text-blue-600', borderClass: 'border-blue-500', shadowClass: 'shadow-blue-900/30', hex: '#2563eb' }
+        };
+
+        let currentYear = '2026/2027';
+        let currentTerm = '1';
+        let firebaseListener = null;
+
+        let state = {
+            categories: [],
+            classes: [],
+            tasks: [],
+            activeFilter: 'all'
+        };
+
+        function getCurrentRealPeriod() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+
+            let startYear, endYear, term;
+            if (month >= 9) {
+                startYear = year;
+                endYear = year + 1;
+                term = '1';
+            } else if (month <= 1) {
+                startYear = year - 1;
+                endYear = year;
+                term = '1';
+            } else {
+                startYear = year - 1;
+                endYear = year;
+                term = '2';
+            }
+
+            return { year: `${startYear}/${endYear}`, term: term };
+        }
+
+        function getCategoryStyle(cat) {
+            if (cat.hex) {
+                return {
+                    custom: true,
+                    hex: cat.hex,
+                    bgStyle: `background-color: ${cat.hex}`,
+                    textStyle: `color: ${cat.hex}`,
+                    borderStyle: `border-color: ${cat.hex}`
+                };
+            }
+            const predefined = PREDEFINED_COLOR_MAP[cat.color] || PREDEFINED_COLOR_MAP['blue'];
+            return {
+                custom: false,
+                bgClass: predefined.bgClass,
+                textClass: predefined.textClass,
+                borderClass: predefined.borderClass,
+                shadowClass: predefined.shadowClass,
+                hex: predefined.hex,
+                bgStyle: '',
+                textStyle: '',
+                borderStyle: ''
+            };
+        }
+
+        function getStorageKey() {
+            const cleanYear = currentYear.replace('/', '_');
+            return `geo_data_v5_${cleanYear}_T${currentTerm}`;
+        }
+
+        function saveStateToFirebase() {
+            const key = getStorageKey();
+            const payload = {
+                categories: state.categories,
+                classes: state.classes,
+                tasks: state.tasks
+            };
+            db.ref('periods/' + key).set(payload);
+            localStorage.setItem(key, JSON.stringify(payload));
+        }
+
+        function loadStateForCurrentPeriod() {
+            const key = getStorageKey();
+
+            if (firebaseListener) {
+                db.ref('periods/' + key).off('value', firebaseListener);
+            }
+
+            const labelEl = document.getElementById('activePeriodLabel');
+            if (labelEl) {
+                labelEl.textContent = `Školský rok ${currentYear} • ${currentTerm}. polrok`;
+            }
+
+            firebaseListener = db.ref('periods/' + key).on('value', (snapshot) => {
+                const val = snapshot.val();
+                if (val) {
+                    state.categories = val.categories || DEFAULT_CATEGORIES;
+                    state.classes = val.classes || DEFAULT_CLASSES;
+                    state.tasks = val.tasks || DEFAULT_TASKS;
+                } else {
+                    const localData = localStorage.getItem(key);
+                    if (localData) {
+                        const parsed = JSON.parse(localData);
+                        state.categories = parsed.categories || DEFAULT_CATEGORIES;
+                        state.classes = parsed.classes || DEFAULT_CLASSES;
+                        state.tasks = parsed.tasks || DEFAULT_TASKS;
+                    } else {
+                        state.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+                        state.classes = JSON.parse(JSON.stringify(DEFAULT_CLASSES));
+                        state.tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+                    }
+                    saveStateToFirebase();
+                }
+                renderMatrix();
+            });
+        }
+
+        function initApp() {
+            const lastYear = localStorage.getItem('geo_last_year');
+            const lastTerm = localStorage.getItem('geo_last_term');
+
+            if (lastYear && lastTerm) {
+                currentYear = lastYear;
+                currentTerm = lastTerm;
+            } else {
+                const realPeriod = getCurrentRealPeriod();
+                currentYear = realPeriod.year;
+                currentTerm = realPeriod.term;
+            }
+
+            const selectEl = document.getElementById('schoolYearSelect');
+            if (selectEl) {
+                if (![...selectEl.options].some(o => o.value === currentYear)) {
+                    const opt = document.createElement('option');
+                    opt.value = currentYear;
+                    opt.textContent = currentYear;
+                    opt.className = "bg-slate-800 text-white";
+                    selectEl.appendChild(opt);
+                }
+                selectEl.value = currentYear;
+            }
+
+            updateTermButtonsUI();
+            loadStateForCurrentPeriod();
+        }
+
+        function updateTermButtonsUI() {
+            const btn1 = document.getElementById('term-btn-1');
+            const btn2 = document.getElementById('term-btn-2');
+
+            if (currentTerm === '1') {
+                btn1.className = "px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-sky-500 text-white shadow-sm";
+                btn2.className = "px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all";
+            } else {
+                btn2.className = "px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-sky-500 text-white shadow-sm";
+                btn1.className = "px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all";
+            }
+        }
+
+        function changePeriod() {
+            const selectEl = document.getElementById('schoolYearSelect');
+            currentYear = selectEl.value;
+            localStorage.setItem('geo_last_year', currentYear);
+            loadStateForCurrentPeriod();
+        }
+
+        function setTerm(term) {
+            currentTerm = term;
+            localStorage.setItem('geo_last_term', currentTerm);
+            updateTermButtonsUI();
+            loadStateForCurrentPeriod();
+        }
+
+        function setFilter(filter) {
+            state.activeFilter = filter;
+            ['all', 'completed', 'planned', 'postponed', 'cancelled'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (btn) {
+                    if (f === filter) {
+                        btn.className = "px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 font-medium border border-sky-500/30 transition-all";
+                    } else {
+                        btn.className = "px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all";
+                    }
+                }
+            });
+            renderMatrix();
+        }
+
+        function renderMatrix() {
+            const header = document.getElementById('matrixHeader');
+            const body = document.getElementById('matrixBody');
+            if (!header || !body) return;
+
+            // Render Header
+            let headerHTML = `<th class="w-32 sm:w-40 p-4 bg-slate-900/90 text-slate-400 font-bold text-xs uppercase tracking-wider sticky left-0 z-20 border-r border-slate-700/80 shadow-md">Trieda</th>`;
+            
+            state.categories.forEach(cat => {
+                const style = getCategoryStyle(cat);
+                const badgeStyle = style.custom ? style.bgStyle : '';
+                const badgeClass = style.custom ? 'text-white' : `${style.bgClass} text-white`;
+
+                headerHTML += `
+                    <th class="p-3 text-center border-r border-slate-700/50 min-w-[140px]">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold tracking-wide shadow-sm" style="${badgeStyle}">
+                            <span class="${badgeClass} px-1.5 py-0.5 rounded text-[10px] font-black uppercase">
+                                ${cat.name}
+                            </span>
+                        </div>
+                    </th>
+                `;
+            });
+            header.innerHTML = headerHTML;
+
+            // Render Rows
+            let bodyHTML = '';
+            let totalTasks = 0;
+            let completedTasks = 0;
+
+            state.classes.forEach(cls => {
+                bodyHTML += `<tr class="hover:bg-slate-800/30 transition-colors">`;
+                bodyHTML += `
+                    <td class="p-4 bg-slate-900/90 font-black text-slate-200 text-sm sm:text-base sticky left-0 z-10 border-r border-slate-700/80 flex items-center justify-between group">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-sm shadow-sky-500/50"></span>
+                            <span>${cls.grade} ${cls.section}</span>
+                        </div>
+                    </td>
+                `;
+
+                state.categories.forEach(cat => {
+                    const cellTasks = state.tasks.filter(t => t.classId === cls.id && t.categoryId === cat.id);
+                    totalTasks += cellTasks.length;
+                    completedTasks += cellTasks.filter(t => t.status === 'completed').length;
+
+                    const filteredTasks = cellTasks.filter(t => {
+                        if (state.activeFilter === 'all') return true;
+                        return t.status === state.activeFilter;
+                    });
+
+                    bodyHTML += `<td class="p-2 border-r border-slate-700/40 align-top h-24">`;
+                    bodyHTML += `<div class="space-y-1.5 min-h-full flex flex-col justify-start">`;
+
+                    filteredTasks.forEach(task => {
+                        let statusClasses = "bg-slate-800 border-slate-600 text-slate-200";
+                        let dotClass = "bg-slate-400";
+
+                        if (task.status === 'completed') {
+                            statusClasses = "bg-emerald-950/40 border-emerald-500/50 text-emerald-200 shadow-sm shadow-emerald-950/50";
+                            dotClass = "bg-emerald-400";
+                        } else if (task.status === 'planned') {
+                            statusClasses = "bg-slate-100 border-slate-300 text-slate-900 font-medium shadow-sm";
+                            dotClass = "bg-slate-600";
+                        } else if (task.status === 'postponed') {
+                            statusClasses = "bg-slate-800/80 border-slate-600 text-slate-400 italic";
+                            dotClass = "bg-slate-500";
+                        } else if (task.status === 'cancelled') {
+                            statusClasses = "bg-slate-950/80 border-slate-800 text-slate-500 line-through opacity-60";
+                            dotClass = "bg-slate-700";
+                        }
+
+                        const titleFormatted = (task.title || '').replace(/\n/g, '<br>');
+
+                        bodyHTML += `
+                            <div onclick="openTaskModal('${task.id}', '${cls.id}', '${cat.id}')" 
+                                 class="cell-card p-2 rounded-xl border text-xs cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all relative group/card ${statusClasses}">
+                                <div class="flex items-start gap-1.5">
+                                    <span class="w-2 h-2 rounded-full ${dotClass} mt-1 shrink-0"></span>
+                                    <div class="leading-tight font-medium select-none break-words">${titleFormatted}</div>
+                                </div>
+                                ${task.note ? `<div class="text-[10px] opacity-75 mt-1 border-t border-current/10 pt-0.5 truncate"><i class="fa-solid fa-note-sticky mr-0.5"></i>${task.note}</div>` : ''}
+                            </div>
+                        `;
+                    });
+
+                    bodyHTML += `
+                        <button onclick="openTaskModal(null, '${cls.id}', '${cat.id}')" 
+                                class="w-full py-1 rounded-lg border border-dashed border-slate-700/60 hover:border-sky-500/50 hover:bg-sky-500/10 text-slate-500 hover:text-sky-400 text-xs transition-all flex items-center justify-center gap-1 opacity-40 hover:opacity-100 mt-auto">
+                            <i class="fa-solid fa-plus text-[10px]"></i>
+                        </button>
+                    `;
+
+                    bodyHTML += `</div></td>`;
+                });
+
+                bodyHTML += `</tr>`;
+            });
+
+            body.innerHTML = bodyHTML;
+
+            // Stats
+            const statsEl = document.getElementById('statsSummary');
+            if (statsEl) {
+                const percent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                statsEl.innerHTML = `Celkom: <b class="text-white">${totalTasks}</b> udalostí | Realizované: <b class="text-emerald-400">${completedTasks}</b> (${percent}%)`;
+            }
+        }
+
+        // Modals
+        function openModal(id) {
+            const m = document.getElementById(id);
+            if (m) {
+                m.classList.remove('hidden');
+                if (id === 'classModal') renderClassList();
+                if (id === 'categoryModal') renderCategoryList();
+            }
+        }
+
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            if (m) m.classList.add('hidden');
+        }
+
+        function openTaskModal(taskId, classId, categoryId) {
+            document.getElementById('taskId').value = taskId || '';
+            document.getElementById('taskClassId').value = classId || '';
+            document.getElementById('taskCategoryId').value = categoryId || '';
+
+            const titleEl = document.getElementById('taskModalTitle');
+            const btnDelete = document.getElementById('btnDeleteTask');
+
+            if (taskId) {
+                const task = state.tasks.find(t => t.id === taskId);
+                if (task) {
+                    document.getElementById('taskTitle').value = task.title || '';
+                    document.getElementById('taskNote').value = task.note || '';
+                    
+                    const radios = document.getElementsByName('taskStatus');
+                    radios.forEach(r => {
+                        r.checked = (r.value === task.status);
+                    });
+
+                    if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-sky-400"></i> Úprava udalosti`;
+                    if (btnDelete) btnDelete.classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('taskTitle').value = '';
+                document.getElementById('taskNote').value = '';
+                
+                const radios = document.getElementsByName('taskStatus');
+                radios.forEach(r => {
+                    r.checked = (r.value === 'planned');
+                });
+
+                if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-plus text-sky-400"></i> Nová udalosť`;
+                if (btnDelete) btnDelete.classList.add('hidden');
+            }
+
+            openModal('taskModal');
+        }
+
+        function handleTaskSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('taskId').value;
+            const classId = document.getElementById('taskClassId').value;
+            const categoryId = document.getElementById('taskCategoryId').value;
+            const title = document.getElementById('taskTitle').value;
+            const note = document.getElementById('taskNote').value;
+            
+            let status = 'planned';
+            const radios = document.getElementsByName('taskStatus');
+            radios.forEach(r => { if (r.checked) status = r.value; });
+
+            if (id) {
+                const task = state.tasks.find(t => t.id === id);
+                if (task) {
+                    task.title = title;
+                    task.status = status;
+                    task.note = note;
+                }
+            } else {
+                state.tasks.push({
+                    id: 't-' + Date.now(),
+                    classId,
+                    categoryId,
+                    title,
+                    status,
+                    note
+                });
+            }
+
+            saveStateToFirebase();
+            closeModal('taskModal');
+            showToast('Udalosť bola úspešne uložená');
+        }
+
+        function deleteCurrentTask() {
+            const id = document.getElementById('taskId').value;
+            if (id) {
+                state.tasks = state.tasks.filter(t => t.id !== id);
+                saveStateToFirebase();
+                closeModal('taskModal');
+                showToast('Udalosť bola vymazaná');
+            }
+        }
+
+        // Classes Management
+        function renderClassList() {
+            const container = document.getElementById('classListContainer');
+            if (!container) return;
+
+            let html = '';
+            state.classes.forEach((cls, index) => {
+                html += `
+                    <div class="flex items-center justify-between p-2.5 bg-slate-900/80 rounded-xl border border-slate-700/60">
+                        <span class="font-bold text-sm text-slate-200">${cls.grade} ${cls.section}</span>
+                        <button onclick="deleteClass('${cls.id}')" class="text-slate-500 hover:text-red-400 p-1.5 transition-colors">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function addNewClass() {
+            const input = document.getElementById('newClassName');
+            const val = input.value.trim();
+            if (!val) return;
+
+            const parts = val.split(' ');
+            const grade = parts[0] || val;
+            const section = parts.slice(1).join(' ') || '';
+
+            state.classes.push({
+                id: 'cls-' + Date.now(),
+                grade,
+                section
+            });
+
+            input.value = '';
+            saveStateToFirebase();
+            renderClassList();
+            showToast('Trieda bola pridaná');
+        }
+
+        function deleteClass(id) {
+            if (confirm('Naozaj chcete vymazať túto triedu aj so všetkými jej udalosťami?')) {
+                state.classes = state.classes.filter(c => c.id !== id);
+                state.tasks = state.tasks.filter(t => t.classId !== id);
+                saveStateToFirebase();
+                renderClassList();
+                showToast('Trieda bola vymazaná');
+            }
+        }
+
+        // Categories Management
+        function renderCategoryList() {
+            const container = document.getElementById('categoryListContainer');
+            if (!container) return;
+
+            let html = '';
+            state.categories.forEach(cat => {
+                const style = getCategoryStyle(cat);
+                const bgStyle = style.custom ? style.bgStyle : '';
+                const bgClass = style.custom ? '' : style.bgClass;
+
+                html += `
+                    <div class="flex items-center justify-between p-2.5 bg-slate-900/80 rounded-xl border border-slate-700/60">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3.5 h-3.5 rounded-full ${bgClass}" style="${bgStyle}"></span>
+                            <span class="font-extrabold text-xs text-slate-200 tracking-wider">${cat.name}</span>
+                        </div>
+                        <button onclick="deleteCategory('${cat.id}')" class="text-slate-500 hover:text-red-400 p-1.5 transition-colors">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function addNewCategory() {
+            const nameInput = document.getElementById('newCategoryName');
+            const hexInput = document.getElementById('newCategoryHex');
+
+            const name = nameInput.value.trim().toUpperCase();
+            const hex = hexInput.value;
+
+            if (!name) return;
+
+            state.categories.push({
+                id: 'cat-' + Date.now(),
+                name,
+                hex
+            });
+
+            nameInput.value = '';
+            saveStateToFirebase();
+            renderCategoryList();
+            showToast('Kategória bola pridaná');
+        }
+
+        function deleteCategory(id) {
+            if (confirm('Naozaj chcete vymazať túto kategóriu aj so všetkými jej udalosťami?')) {
+                state.categories = state.categories.filter(c => c.id !== id);
+                state.tasks = state.tasks.filter(t => t.categoryId !== id);
+                saveStateToFirebase();
+                renderCategoryList();
+                showToast('Kategória bola vymazaná');
+            }
+        }
+
+        // Export & Import
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `geografia_export_${currentYear.replace('/', '_')}_T${currentTerm}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importData(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.categories && parsed.classes && parsed.tasks) {
+                        state = parsed;
+                        saveStateToFirebase();
+                        showToast('Dáta boli úspešne importované');
+                    } else {
+                        alert('Neplatný formát súboru.');
+                    }
+                } catch (err) {
+                    alert('Chyba pri čítaní JSON súboru.');
+                }
+            };
+            fileReader.readAsText(event.target.files[0]);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            if (toast && toastMsg) {
+                toastMsg.textContent = msg;
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('translate-y-20', 'opacity-0');
+                }, 3000);
+            }
+        }
+
+        // Start App
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
